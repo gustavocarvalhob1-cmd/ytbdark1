@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamFetch } from "@/lib/cliente";
+import { CANAIS, CANAL_PADRAO } from "@/lib/canais";
 import type { Fonte, MetaFinal, VideoSalvo } from "@/lib/tipos";
 
 const CHAVE_HISTORICO = "estudio-dark-historico";
 const CHAVE_ATUAL = "estudio-dark-atual";
 const CHAVE_SENHA = "estudio-dark-senha";
+const CHAVE_CANAL = "estudio-dark-canal";
 const MAX_HISTORICO = 10; // guarda os ultimos 10 videos
 
 type Passo = 1 | 2 | 3;
@@ -49,6 +51,7 @@ export default function Pagina() {
   // ----- fluxo -----
   const [passo, setPasso] = useState<Passo>(1);
   const [passoMax, setPassoMax] = useState<Passo>(1);
+  const [canalAtivo, setCanalAtivo] = useState<string>(CANAL_PADRAO.id);
 
   // passo 1
   const [fonte, setFonte] = useState("");
@@ -92,6 +95,9 @@ export default function Pagina() {
     const s = localStorage.getItem(CHAVE_SENHA) || "";
     validarSenha(s).finally(() => setVerificandoLogin(false));
 
+    const canalSalvo = localStorage.getItem(CHAVE_CANAL);
+    if (canalSalvo && CANAIS.some((c) => c.id === canalSalvo)) setCanalAtivo(canalSalvo);
+
     let hist: VideoSalvo[] = [];
     try {
       const bruto = JSON.parse(localStorage.getItem(CHAVE_HISTORICO) || "[]");
@@ -121,6 +127,7 @@ export default function Pagina() {
     setHistorico((prev) => {
       const outros = prev.filter((v) => v.id !== idAtual);
       const atual: VideoSalvo = {
+        canal: canalAtivo,
         id: idAtual,
         titulo: derivarTitulo({ roteiro, dossie, fonte }),
         data: Date.now(),
@@ -142,7 +149,7 @@ export default function Pagina() {
       }
       return nova;
     });
-  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, passoMax, verificandoLogin, idAtual]);
+  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, passoMax, verificandoLogin, idAtual, canalAtivo]);
 
   function novoVideo() {
     setIdAtual(novoId());
@@ -157,6 +164,17 @@ export default function Pagina() {
     setPasso(1);
     setErro("");
     setMostrarHistorico(false);
+  }
+
+  function trocarCanal(id: string) {
+    if (id === canalAtivo) return;
+    setCanalAtivo(id);
+    try {
+      localStorage.setItem(CHAVE_CANAL, id);
+    } catch {
+      /* ignora */
+    }
+    novoVideo(); // comeca um video novo no canal escolhido
   }
 
   function carregarVideo(v: VideoSalvo) {
@@ -229,7 +247,7 @@ export default function Pagina() {
     setCarregando1(true);
     setStatus1("Iniciando...");
     let texto = "";
-    const ok = await streamFetch("/api/fonte", { fonte }, senha, {
+    const ok = await streamFetch("/api/fonte", { fonte, canal: canalAtivo }, senha, {
       onStatus: setStatus1,
       onDelta: (t) => {
         texto += t;
@@ -243,7 +261,7 @@ export default function Pagina() {
     if (ok && texto.trim()) {
       setPassoMax((p) => (p < 2 ? 2 : p));
     }
-  }, [carregando1, fonte, senha]);
+  }, [carregando1, fonte, senha, canalAtivo]);
 
   // ---------------- PASSO 2 ----------------
   const rodarPasso2 = useCallback(async () => {
@@ -258,7 +276,7 @@ export default function Pagina() {
     setCarregando2(true);
     setStatus2("Iniciando...");
     let texto = "";
-    const ok = await streamFetch("/api/roteiro", { dossie, extras }, senha, {
+    const ok = await streamFetch("/api/roteiro", { dossie, extras, canal: canalAtivo }, senha, {
       onStatus: setStatus2,
       onDelta: (t) => {
         texto += t;
@@ -274,7 +292,7 @@ export default function Pagina() {
     if (ok && texto.trim()) {
       setPassoMax((p) => (p < 3 ? 3 : p));
     }
-  }, [carregando2, dossie, extras, senha]);
+  }, [carregando2, dossie, extras, senha, canalAtivo]);
 
   // ---------------- PASSO 3 (em lotes) ----------------
   const rodarPasso3 = useCallback(async () => {
@@ -308,7 +326,7 @@ export default function Pagina() {
         );
         const ok = await streamFetch(
           "/api/prompts",
-          { roteiro, indice: i, total: totalLotes },
+          { roteiro, indice: i, total: totalLotes, canal: canalAtivo },
           senha,
           {
             onDelta: (t) => {
@@ -339,7 +357,7 @@ export default function Pagina() {
     }
     setCarregando3(false);
     setStatus3("");
-  }, [carregando3, roteiro, meta, senha]);
+  }, [carregando3, roteiro, meta, senha, canalAtivo]);
 
   function irPara(p: Passo) {
     if (p <= passoMax) {
@@ -384,6 +402,11 @@ export default function Pagina() {
     );
   }
 
+  const canalObj = CANAIS.find((c) => c.id === canalAtivo) || CANAL_PADRAO;
+  const historicoDoCanal = historico.filter(
+    (v) => (v.canal || CANAL_PADRAO.id) === canalAtivo,
+  );
+
   return (
     <main className="min-h-screen pb-24">
       <div className="max-w-3xl mx-auto px-4">
@@ -397,6 +420,29 @@ export default function Pagina() {
           </p>
         </header>
 
+        {/* seletor de canal */}
+        <div className="flex flex-wrap gap-2 pb-3">
+          {CANAIS.map((c) => {
+            const ativo = c.id === canalAtivo;
+            return (
+              <button
+                key={c.id}
+                onClick={() => trocarCanal(c.id)}
+                style={ativo ? { borderColor: c.cor, color: c.cor } : undefined}
+                className={[
+                  "text-sm rounded-lg px-3 py-2 border transition",
+                  ativo
+                    ? "bg-painel font-semibold"
+                    : "border-borda text-suave hover:text-texto",
+                ].join(" ")}
+              >
+                <span className="mr-1">{c.emoji}</span>
+                {c.nome}
+              </button>
+            );
+          })}
+        </div>
+
         {/* barra do historico */}
         <div className="flex items-center justify-between gap-2 pb-3">
           <button
@@ -405,19 +451,19 @@ export default function Pagina() {
           >
             + Novo video
           </button>
-          {historico.length > 0 && (
+          {historicoDoCanal.length > 0 && (
             <button
               onClick={() => setMostrarHistorico((v) => !v)}
               className="text-sm border border-borda rounded-lg px-3 py-2 text-suave hover:text-texto hover:border-destaque/60"
             >
-              Meus videos ({historico.length}) {mostrarHistorico ? "▲" : "▼"}
+              Meus videos ({historicoDoCanal.length}) {mostrarHistorico ? "▲" : "▼"}
             </button>
           )}
         </div>
 
-        {mostrarHistorico && historico.length > 0 && (
+        {mostrarHistorico && historicoDoCanal.length > 0 && (
           <div className="bg-painel border border-borda rounded-xl p-2 mb-4 divide-y divide-borda">
-            {historico.map((v) => (
+            {historicoDoCanal.map((v) => (
               <div key={v.id} className="flex items-center gap-2 px-2 py-2">
                 <button onClick={() => carregarVideo(v)} className="flex-1 text-left min-w-0">
                   <div className="text-sm text-texto truncate">
@@ -453,14 +499,11 @@ export default function Pagina() {
         {passo === 1 && (
           <section className="mt-6 space-y-5">
             <div>
-              <label className="text-sm text-suave">
-                Fonte da informacao
-                <span className="text-suave/70"> (transcricao do video, link ou noticia)</span>
-              </label>
+              <label className="text-sm text-suave">{canalObj.entrada.label}</label>
               <textarea
                 value={fonte}
                 onChange={(e) => setFonte(e.target.value)}
-                placeholder="Cole aqui a transcricao do video, o link do YouTube ou o texto da noticia..."
+                placeholder={canalObj.entrada.placeholder}
                 rows={9}
                 className="mt-2 w-full bg-fundo border border-borda rounded-lg p-3 text-texto placeholder-suave focus:border-destaque outline-none resize-y"
               />
@@ -488,12 +531,12 @@ export default function Pagina() {
               disabled={carregando1}
               className="bg-destaque text-black font-semibold rounded-lg px-5 py-3 hover:brightness-110 disabled:opacity-40"
             >
-              {carregando1 ? "Trabalhando..." : "Verificar fatos e pesquisar"}
+              {carregando1 ? "Trabalhando..." : canalObj.entrada.rotuloBotao}
             </button>
 
             {(carregando1 || dossie) && (
               <Resultado
-                titulo="Dossie verificado"
+                titulo={canalObj.entrada.modo === "livre" ? "Material do tema" : "Dossie verificado"}
                 conteudo={dossie}
                 gerando={carregando1}
                 status={status1}
