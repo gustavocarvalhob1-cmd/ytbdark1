@@ -1,0 +1,28 @@
+# dependencias
+/node_modules
+
+# next.js
+/.next/
+/out/
+/build
+
+# ambiente — NUNCA comitar chaves reais
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# ferramentas de recuperacao (uso local; TOKEN contem segredo)
+TOKEN-VERCEL.txt
+recover.mjs
+pull-env.mjs
+
+# SO / logs
+*.log
+.DS_Store
+Thumbs.db
