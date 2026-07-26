@@ -22,6 +22,7 @@ export interface MetaFinal {
 
 // Um video salvo no historico (fica guardado no navegador).
 export interface VideoSalvo {
+  canal: string; // id do canal a que este video pertence
   id: string;
   titulo: string;
   data: number; // timestamp
