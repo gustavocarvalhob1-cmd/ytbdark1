@@ -26,3 +26,6 @@ pull-env.mjs
 *.log
 .DS_Store
 Thumbs.db
+
+.vercel
+.env*
