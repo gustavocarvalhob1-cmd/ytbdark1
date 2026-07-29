@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamFetch } from "@/lib/cliente";
 import { CANAIS, CANAL_PADRAO } from "@/lib/canais";
-import type { Fonte, MetaFinal, VideoSalvo } from "@/lib/tipos";
+import type { Fonte, MetaFinal, VideoSalvo, Formato } from "@/lib/tipos";
 
 const CHAVE_HISTORICO = "estudio-dark-historico";
 const CHAVE_ATUAL = "estudio-dark-atual";
 const CHAVE_SENHA = "estudio-dark-senha";
 const CHAVE_CANAL = "estudio-dark-canal";
+const CHAVE_DURACAO = "estudio-dark-duracao";
+const CHAVE_FORMATO = "estudio-dark-formato";
 const MAX_HISTORICO = 10; // guarda os ultimos 10 videos
 
 type Passo = 1 | 2 | 3;
@@ -52,6 +54,8 @@ export default function Pagina() {
   const [passo, setPasso] = useState<Passo>(1);
   const [passoMax, setPassoMax] = useState<Passo>(1);
   const [canalAtivo, setCanalAtivo] = useState<string>(CANAL_PADRAO.id);
+  const [duracao, setDuracao] = useState<number>(10);
+  const [formato, setFormato] = useState<Formato>("youtube");
 
   // passo 1
   const [fonte, setFonte] = useState("");
@@ -88,6 +92,8 @@ export default function Pagina() {
     setMeta(v.meta || null);
     setPrompts(v.prompts || "");
     setPassoMax((v.passoMax || 1) as Passo);
+    setDuracao(v.duracaoMin && v.duracaoMin >= 1 ? v.duracaoMin : 10);
+    setFormato(v.formato === "tiktok" ? "tiktok" : "youtube");
   }
 
   // ---- ao abrir: carregar senha, historico e o video em que estava ----
@@ -97,6 +103,10 @@ export default function Pagina() {
 
     const canalSalvo = localStorage.getItem(CHAVE_CANAL);
     if (canalSalvo && CANAIS.some((c) => c.id === canalSalvo)) setCanalAtivo(canalSalvo);
+
+    const durSalva = Number(localStorage.getItem(CHAVE_DURACAO));
+    if (durSalva >= 1 && durSalva <= 20) setDuracao(durSalva);
+    if (localStorage.getItem(CHAVE_FORMATO) === "tiktok") setFormato("tiktok");
 
     let hist: VideoSalvo[] = [];
     try {
@@ -128,6 +138,8 @@ export default function Pagina() {
       const outros = prev.filter((v) => v.id !== idAtual);
       const atual: VideoSalvo = {
         canal: canalAtivo,
+        duracaoMin: duracao,
+        formato,
         id: idAtual,
         titulo: derivarTitulo({ roteiro, dossie, fonte }),
         data: Date.now(),
@@ -149,7 +161,7 @@ export default function Pagina() {
       }
       return nova;
     });
-  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, passoMax, verificandoLogin, idAtual, canalAtivo]);
+  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, passoMax, verificandoLogin, idAtual, canalAtivo, duracao, formato]);
 
   function novoVideo() {
     setIdAtual(novoId());
@@ -175,6 +187,28 @@ export default function Pagina() {
       /* ignora */
     }
     novoVideo(); // comeca um video novo no canal escolhido
+  }
+
+  function trocarFormato(f: Formato) {
+    setFormato(f);
+    const sugestao = f === "tiktok" ? 1 : 10;
+    setDuracao(sugestao);
+    try {
+      localStorage.setItem(CHAVE_FORMATO, f);
+      localStorage.setItem(CHAVE_DURACAO, String(sugestao));
+    } catch {
+      /* ignora */
+    }
+  }
+
+  function mudarDuracao(min: number) {
+    const v = Math.max(1, Math.min(20, Math.round(min || 0)));
+    setDuracao(v);
+    try {
+      localStorage.setItem(CHAVE_DURACAO, String(v));
+    } catch {
+      /* ignora */
+    }
   }
 
   function carregarVideo(v: VideoSalvo) {
@@ -276,7 +310,11 @@ export default function Pagina() {
     setCarregando2(true);
     setStatus2("Iniciando...");
     let texto = "";
-    const ok = await streamFetch("/api/roteiro", { dossie, extras, canal: canalAtivo }, senha, {
+    const ok = await streamFetch(
+      "/api/roteiro",
+      { dossie, extras, canal: canalAtivo, duracaoMin: duracao, formato },
+      senha,
+      {
       onStatus: setStatus2,
       onDelta: (t) => {
         texto += t;
@@ -292,7 +330,7 @@ export default function Pagina() {
     if (ok && texto.trim()) {
       setPassoMax((p) => (p < 3 ? 3 : p));
     }
-  }, [carregando2, dossie, extras, senha, canalAtivo]);
+  }, [carregando2, dossie, extras, senha, canalAtivo, duracao, formato]);
 
   // ---------------- PASSO 3 (em lotes) ----------------
   const rodarPasso3 = useCallback(async () => {
@@ -326,7 +364,7 @@ export default function Pagina() {
         );
         const ok = await streamFetch(
           "/api/prompts",
-          { roteiro, indice: i, total: totalLotes, canal: canalAtivo },
+          { roteiro, indice: i, total: totalLotes, canal: canalAtivo, formato },
           senha,
           {
             onDelta: (t) => {
@@ -357,7 +395,7 @@ export default function Pagina() {
     }
     setCarregando3(false);
     setStatus3("");
-  }, [carregando3, roteiro, meta, senha, canalAtivo]);
+  }, [carregando3, roteiro, meta, senha, canalAtivo, formato]);
 
   function irPara(p: Passo) {
     if (p <= passoMax) {
@@ -498,6 +536,38 @@ export default function Pagina() {
         {/* ---------------- PASSO 1 ---------------- */}
         {passo === 1 && (
           <section className="mt-6 space-y-5">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="text-sm text-suave block mb-1">Duração (min)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={duracao}
+                  onChange={(e) => mudarDuracao(Number(e.target.value))}
+                  className="w-24 bg-fundo border border-borda rounded-lg p-2 text-texto focus:border-destaque outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-suave block mb-1">Formato</label>
+                <div className="flex gap-2">
+                  {(["youtube", "tiktok"] as Formato[]).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => trocarFormato(f)}
+                      className={[
+                        "text-sm rounded-lg px-3 py-2 border transition",
+                        formato === f
+                          ? "bg-painel border-destaque text-texto font-semibold"
+                          : "border-borda text-suave hover:text-texto",
+                      ].join(" ")}
+                    >
+                      {f === "youtube" ? "▶️ YouTube" : "📱 TikTok"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div>
               <label className="text-sm text-suave">{canalObj.entrada.label}</label>
               <textarea
