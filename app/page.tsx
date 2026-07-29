@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamFetch } from "@/lib/cliente";
+import { montarFonteInsight, parsearAngulos } from "@/lib/roteiro-utils";
 import { CANAIS, CANAL_PADRAO } from "@/lib/canais";
 import type { Fonte, MetaFinal, VideoSalvo, Formato } from "@/lib/tipos";
 
@@ -11,7 +12,7 @@ const CHAVE_SENHA = "estudio-dark-senha";
 const CHAVE_CANAL = "estudio-dark-canal";
 const CHAVE_DURACAO = "estudio-dark-duracao";
 const CHAVE_FORMATO = "estudio-dark-formato";
-const MAX_HISTORICO = 10; // guarda os ultimos 10 videos
+const MAX_HISTORICO = 30; // guarda os ultimos 30 videos (a fila gera varios)
 
 type Passo = 1 | 2 | 3;
 
@@ -77,6 +78,25 @@ export default function Pagina() {
   const [status3, setStatus3] = useState("");
 
   const [erro, setErro] = useState("");
+
+  // ----- modo insight -----
+  const [faseInsight, setFaseInsight] = useState<"off" | "angulos" | "direcao">("off");
+  const [ideiaInsight, setIdeiaInsight] = useState("");
+  const [angulosTexto, setAngulosTexto] = useState("");
+  const [anguloEscolhido, setAnguloEscolhido] = useState("");
+  const [direcaoTexto, setDirecaoTexto] = useState("");
+  const [carregandoInsight, setCarregandoInsight] = useState(false);
+
+  // ----- modo fila -----
+  const [modoFila, setModoFila] = useState(false);
+  const [filaEntrada, setFilaEntrada] = useState("");
+  const [filaItens, setFilaItens] = useState<string[]>([]);
+  const [filaRodando, setFilaRodando] = useState(false);
+  const [filaProgresso, setFilaProgresso] = useState<{ atual: number; total: number }>({
+    atual: 0,
+    total: 0,
+  });
+  const pararFilaRef = useRef(false);
 
   // ----- historico de videos (fica salvo no navegador) -----
   const [historico, setHistorico] = useState<VideoSalvo[]>([]);
@@ -269,10 +289,11 @@ export default function Pagina() {
   }
 
   // ---------------- PASSO 1 ----------------
-  const rodarPasso1 = useCallback(async () => {
+  const rodarPasso1 = useCallback(async (fonteOverride?: string) => {
     if (carregando1) return;
-    if (fonte.trim().length < 20) {
-      setErro("Cole a transcricao, o link ou a noticia (precisa de um pouco mais de texto).");
+    const textoFonte = (fonteOverride ?? fonte).trim();
+    if (textoFonte.length < 20) {
+      setErro("Escreva um pouco mais de texto pra comecar.");
       return;
     }
     setErro("");
@@ -281,7 +302,7 @@ export default function Pagina() {
     setCarregando1(true);
     setStatus1("Iniciando...");
     let texto = "";
-    const ok = await streamFetch("/api/fonte", { fonte, canal: canalAtivo }, senha, {
+    const ok = await streamFetch("/api/fonte", { fonte: textoFonte, canal: canalAtivo }, senha, {
       onStatus: setStatus1,
       onDelta: (t) => {
         texto += t;
@@ -296,6 +317,156 @@ export default function Pagina() {
       setPassoMax((p) => (p < 2 ? 2 : p));
     }
   }, [carregando1, fonte, senha, canalAtivo]);
+
+  // ---------------- MODO INSIGHT ----------------
+  const explorarAngulos = useCallback(async () => {
+    if (carregandoInsight) return;
+    if (fonte.trim().length < 6) {
+      setErro("Escreva a sua ideia primeiro.");
+      return;
+    }
+    setErro("");
+    setIdeiaInsight(fonte.trim());
+    setAngulosTexto("");
+    setAnguloEscolhido("");
+    setFaseInsight("angulos");
+    setCarregandoInsight(true);
+    let texto = "";
+    await streamFetch("/api/angulos", { ideia: fonte.trim(), canal: canalAtivo }, senha, {
+      onDelta: (t) => {
+        texto += t;
+        setAngulosTexto(texto);
+      },
+      onError: (m) => setErro(m),
+    });
+    setCarregandoInsight(false);
+  }, [carregandoInsight, fonte, canalAtivo, senha]);
+
+  const enviarAngulo = useCallback(async () => {
+    if (carregandoInsight) return;
+    if (anguloEscolhido.trim().length < 2) {
+      setErro("Escolha um angulo ou escreva o seu.");
+      return;
+    }
+    setErro("");
+    setDirecaoTexto("");
+    setFaseInsight("direcao");
+    setCarregandoInsight(true);
+    let texto = "";
+    await streamFetch(
+      "/api/direcao",
+      { ideia: ideiaInsight, angulo: anguloEscolhido.trim(), canal: canalAtivo },
+      senha,
+      {
+        onDelta: (t) => {
+          texto += t;
+          setDirecaoTexto(texto);
+        },
+        onError: (m) => setErro(m),
+      },
+    );
+    setCarregandoInsight(false);
+  }, [carregandoInsight, anguloEscolhido, ideiaInsight, canalAtivo, senha]);
+
+  function seguirInsight() {
+    const f = montarFonteInsight(ideiaInsight, anguloEscolhido, direcaoTexto);
+    setFonte(f);
+    setFaseInsight("off");
+    rodarPasso1(f);
+  }
+
+  function cancelarInsight() {
+    setFaseInsight("off");
+    setErro("");
+  }
+
+  // ---------------- MODO FILA ----------------
+  function adicionarNaFila() {
+    if (filaEntrada.trim().length < 20) {
+      setErro("Escreva um pouco mais pra adicionar à fila.");
+      return;
+    }
+    setErro("");
+    setFilaItens((prev) => [...prev, filaEntrada.trim()]);
+    setFilaEntrada("");
+  }
+
+  function removerDaFila(i: number) {
+    setFilaItens((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function pararFila() {
+    pararFilaRef.current = true;
+  }
+
+  const rodarFila = useCallback(async () => {
+    if (filaRodando || filaItens.length === 0) return;
+    setErro("");
+    setFilaRodando(true);
+    pararFilaRef.current = false;
+    const itens = [...filaItens];
+
+    for (let i = 0; i < itens.length; i++) {
+      if (pararFilaRef.current) break;
+      setFilaProgresso({ atual: i + 1, total: itens.length });
+      const item = itens[i];
+
+      let dossieTexto = "";
+      let fontesItem: Fonte[] = [];
+      const okFonte = await streamFetch("/api/fonte", { fonte: item, canal: canalAtivo }, senha, {
+        onDelta: (t) => (dossieTexto += t),
+        onSources: (its) => (fontesItem = its),
+        onError: (m) => setErro(m),
+      });
+      if (!okFonte || dossieTexto.trim().length < 20) continue;
+
+      let roteiroTexto = "";
+      let metaItem: MetaFinal | null = null;
+      const okRot = await streamFetch(
+        "/api/roteiro",
+        { dossie: dossieTexto, extras: "", canal: canalAtivo, duracaoMin: duracao, formato },
+        senha,
+        {
+          onDelta: (t) => (roteiroTexto += t),
+          onDone: (m) => {
+            if (m) metaItem = m;
+          },
+          onError: (m) => setErro(m),
+        },
+      );
+      if (!okRot || !roteiroTexto.trim()) continue;
+
+      const video: VideoSalvo = {
+        canal: canalAtivo,
+        duracaoMin: duracao,
+        formato,
+        id: novoId(),
+        titulo: derivarTitulo({ roteiro: roteiroTexto, dossie: dossieTexto, fonte: item }),
+        data: Date.now(),
+        fonte: item,
+        extras: "",
+        dossie: dossieTexto,
+        fontes: fontesItem,
+        roteiro: roteiroTexto,
+        meta: metaItem,
+        prompts: "",
+        passoMax: 3,
+      };
+      setHistorico((prev) => {
+        const nova = [video, ...prev].slice(0, MAX_HISTORICO);
+        try {
+          localStorage.setItem(CHAVE_HISTORICO, JSON.stringify(nova));
+        } catch {
+          /* ignora */
+        }
+        return nova;
+      });
+      setFilaItens((prev) => prev.filter((x) => x !== item));
+    }
+
+    setFilaRodando(false);
+    setFilaProgresso({ atual: 0, total: 0 });
+  }, [filaRodando, filaItens, canalAtivo, senha, duracao, formato]);
 
   // ---------------- PASSO 2 ----------------
   const rodarPasso2 = useCallback(async () => {
@@ -483,12 +654,20 @@ export default function Pagina() {
 
         {/* barra do historico */}
         <div className="flex items-center justify-between gap-2 pb-3">
-          <button
-            onClick={novoVideo}
-            className="text-sm border border-borda rounded-lg px-3 py-2 text-suave hover:text-texto hover:border-destaque/60"
-          >
-            + Novo video
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={novoVideo}
+              className="text-sm border border-borda rounded-lg px-3 py-2 text-suave hover:text-texto hover:border-destaque/60"
+            >
+              + Novo video
+            </button>
+            <button
+              onClick={() => setModoFila((v) => !v)}
+              className="text-sm border border-borda rounded-lg px-3 py-2 text-suave hover:text-texto hover:border-destaque/60"
+            >
+              🗂️ Modo fila {modoFila ? "▲" : "▼"}
+            </button>
+          </div>
           {historicoDoCanal.length > 0 && (
             <button
               onClick={() => setMostrarHistorico((v) => !v)}
@@ -522,6 +701,72 @@ export default function Pagina() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {modoFila && (
+          <div className="bg-painel border border-borda rounded-xl p-4 mb-4 space-y-3">
+            <p className="text-sm text-suave">
+              A fila usa o canal <b className="text-texto">{canalObj.nome}</b>, duração{" "}
+              <b className="text-texto">{duracao} min</b> e formato{" "}
+              <b className="text-texto">{formato === "tiktok" ? "TikTok" : "YouTube"}</b>. Cada item
+              vira um roteiro no histórico.
+            </p>
+            <textarea
+              value={filaEntrada}
+              onChange={(e) => setFilaEntrada(e.target.value)}
+              placeholder="Cole uma ideia, link ou transcrição e clique em Adicionar. Repita pra encher a fila."
+              rows={3}
+              className="w-full bg-fundo border border-borda rounded-lg p-3 text-texto placeholder-suave focus:border-destaque outline-none resize-y"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={adicionarNaFila}
+                disabled={filaRodando}
+                className="text-sm border border-borda rounded-lg px-3 py-2 text-suave hover:text-texto hover:border-destaque/60 disabled:opacity-40"
+              >
+                + Adicionar à fila
+              </button>
+              {filaItens.length > 0 && !filaRodando && (
+                <button
+                  onClick={rodarFila}
+                  className="text-sm bg-destaque text-black font-semibold rounded-lg px-4 py-2 hover:brightness-110"
+                >
+                  Rodar fila ({filaItens.length})
+                </button>
+              )}
+              {filaRodando && (
+                <button
+                  onClick={pararFila}
+                  className="text-sm border border-red-800/60 text-red-300 rounded-lg px-4 py-2 hover:bg-red-950/40"
+                >
+                  Parar
+                </button>
+              )}
+            </div>
+            {filaRodando && (
+              <p className="text-sm text-destaque">
+                Processando {filaProgresso.atual} de {filaProgresso.total}...
+              </p>
+            )}
+            {filaItens.length > 0 && (
+              <ul className="divide-y divide-borda border border-borda rounded-lg">
+                {filaItens.map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 px-3 py-2">
+                    <span className="text-xs text-suave shrink-0">{i + 1}.</span>
+                    <span className="text-sm text-texto truncate flex-1">{item.slice(0, 80)}</span>
+                    {!filaRodando && (
+                      <button
+                        onClick={() => removerDaFila(i)}
+                        className="text-suave hover:text-red-400 text-xs px-2 shrink-0"
+                      >
+                        remover
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -596,13 +841,90 @@ export default function Pagina() {
               </p>
             </div>
 
-            <button
-              onClick={rodarPasso1}
-              disabled={carregando1}
-              className="bg-destaque text-black font-semibold rounded-lg px-5 py-3 hover:brightness-110 disabled:opacity-40"
-            >
-              {carregando1 ? "Trabalhando..." : canalObj.entrada.rotuloBotao}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => rodarPasso1()}
+                disabled={carregando1 || carregandoInsight}
+                className="bg-destaque text-black font-semibold rounded-lg px-5 py-3 hover:brightness-110 disabled:opacity-40"
+              >
+                {carregando1 ? "Trabalhando..." : canalObj.entrada.rotuloBotao}
+              </button>
+              <button
+                onClick={explorarAngulos}
+                disabled={carregando1 || carregandoInsight}
+                className="border border-borda text-suave rounded-lg px-4 py-3 hover:text-texto hover:border-destaque/60 disabled:opacity-40"
+              >
+                💡 Explorar ângulos
+              </button>
+            </div>
+
+            {faseInsight === "angulos" && (
+              <div className="bg-painel border border-borda rounded-xl p-4 space-y-3">
+                <p className="text-sm text-suave">Escolha um caminho (ou escreva o seu):</p>
+                <div className="flex flex-col gap-2">
+                  {parsearAngulos(angulosTexto).map((a, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setAnguloEscolhido(a)}
+                      className={[
+                        "text-left text-sm rounded-lg px-3 py-2 border transition",
+                        anguloEscolhido === a
+                          ? "border-destaque bg-fundo text-texto"
+                          : "border-borda text-suave hover:text-texto",
+                      ].join(" ")}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+                {carregandoInsight && (
+                  <p className="text-xs text-destaque">Pensando em caminhos...</p>
+                )}
+                <input
+                  value={anguloEscolhido}
+                  onChange={(e) => setAnguloEscolhido(e.target.value)}
+                  placeholder="Ou escreva aqui o ângulo que você quer..."
+                  className="w-full bg-fundo border border-borda rounded-lg p-2 text-texto placeholder-suave focus:border-destaque outline-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={enviarAngulo}
+                    disabled={carregandoInsight}
+                    className="bg-destaque text-black font-semibold rounded-lg px-4 py-2 hover:brightness-110 disabled:opacity-40"
+                  >
+                    Enviar ângulo
+                  </button>
+                  <button
+                    onClick={cancelarInsight}
+                    className="text-sm text-suave px-3 py-2 hover:text-texto"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {faseInsight === "direcao" && (
+              <div className="bg-painel border border-borda rounded-xl p-4 space-y-3">
+                <p className="text-sm text-suave">O rumo que entendi:</p>
+                <p className="text-[15px] text-texto whitespace-pre-wrap">{direcaoTexto}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={seguirInsight}
+                    disabled={carregandoInsight}
+                    className="bg-destaque text-black font-semibold rounded-lg px-4 py-2 hover:brightness-110 disabled:opacity-40"
+                  >
+                    Seguir com esse rumo →
+                  </button>
+                  <button
+                    onClick={() => setFaseInsight("angulos")}
+                    className="text-sm text-suave px-3 py-2 hover:text-texto"
+                  >
+                    Voltar aos ângulos
+                  </button>
+                </div>
+              </div>
+            )}
 
             {(carregando1 || dossie) && (
               <Resultado
