@@ -8,6 +8,10 @@ import {
   instrucaoDuracao,
   instrucaoFormatoRoteiro,
   instrucaoFormatoImagens,
+  mensagemAngulos,
+  mensagemDirecao,
+  montarFonteInsight,
+  parsearAngulos,
 } from "./roteiro-utils";
 
 describe("contarPalavras", () => {
@@ -73,5 +77,32 @@ describe("instrucaoFormatoImagens", () => {
   });
   it("tiktok menciona 9:16", () => {
     expect(instrucaoFormatoImagens("tiktok")).toContain("9:16");
+  });
+});
+
+describe("insight", () => {
+  it("mensagemAngulos inclui a ideia e o contexto do canal", () => {
+    const m = mensagemAngulos("solidao nas cidades", "Inspiracional — motivacional");
+    expect(m).toContain("solidao nas cidades");
+    expect(m).toContain("Inspiracional");
+  });
+  it("mensagemDirecao inclui a ideia e o angulo", () => {
+    const m = mensagemDirecao("solidao nas cidades", "o lado psicologico");
+    expect(m).toContain("solidao nas cidades");
+    expect(m).toContain("o lado psicologico");
+  });
+  it("montarFonteInsight junta ideia, angulo e direcao", () => {
+    const f = montarFonteInsight("a ideia", "o angulo", "a direcao confirmada");
+    expect(f).toContain("a ideia");
+    expect(f).toContain("o angulo");
+    expect(f).toContain("a direcao confirmada");
+  });
+  it("parsearAngulos extrai as linhas numeradas", () => {
+    const texto = "1. primeiro caminho\n2) segundo caminho\n3 - terceiro";
+    expect(parsearAngulos(texto)).toEqual([
+      "primeiro caminho",
+      "segundo caminho",
+      "terceiro",
+    ]);
   });
 });

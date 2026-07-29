@@ -103,3 +103,40 @@ export function instrucaoFormatoImagens(formato: Formato): string {
   }
   return `\n\nFORMATO DO VIDEO: horizontal 16:9 (widescreen). Inclua a expressao "horizontal 16:9 aspect ratio" em cada prompt.`;
 }
+
+// PASSO 1 (modo insight): a partir de uma ideia solta, pedir 3 a 5 angulos possiveis.
+export function mensagemAngulos(ideia: string, contextoCanal: string): string {
+  return `Canal: ${contextoCanal}
+
+Ideia solta do usuario: "${ideia.trim()}"
+
+Proponha de 3 a 5 angulos/caminhos diferentes para virar um video desse canal.`;
+}
+
+// Modo insight: confirmar o rumo depois que o usuario escolheu/escreveu um angulo.
+export function mensagemDirecao(ideia: string, angulo: string): string {
+  return `Ideia: "${ideia.trim()}"
+Caminho escolhido: "${angulo.trim()}"
+
+Confirme que entendeu o rumo, num paragrafo curto.`;
+}
+
+// Monta a "fonte" que alimenta o Passo 1 depois de o usuario autorizar o rumo.
+export function montarFonteInsight(ideia: string, angulo: string, direcao: string): string {
+  return `IDEIA: ${ideia.trim()}
+CAMINHO ESCOLHIDO: ${angulo.trim()}
+
+RUMO DEFINIDO:
+${direcao.trim()}`;
+}
+
+// Extrai os angulos (linhas que comecam com numero) do texto que a IA devolveu.
+export function parsearAngulos(texto: string): string[] {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^\d+\s*[.)\-–:]/.test(l)) // so linhas que comecam com "1." "2)" "3 -" etc.
+    .map((l) => l.replace(/^\d+\s*[.)\-–:]\s*/, "").trim()) // tira o prefixo numerico
+    .filter((l) => l.length > 0)
+    .slice(0, 5);
+}
