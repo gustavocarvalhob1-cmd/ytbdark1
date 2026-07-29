@@ -1,6 +1,8 @@
 // Funcoes puras, sem "voz" propria: contagem/tempo, fatiamento e montagem das
 // mensagens do usuario. Compartilhadas por todos os canais.
 
+import type { Formato } from "./tipos";
+
 export function contarPalavras(texto: string): number {
   const limpo = texto.trim();
   if (!limpo) return 0;
@@ -77,4 +79,27 @@ export function mensagemPrompts(opts: {
 ===== TRECHO DO ROTEIRO =====
 ${opts.trecho.trim()}
 ===== FIM DO TRECHO =====`;
+}
+
+// Instrucao dinamica de tamanho, a partir da duracao escolhida (clampada 1-20 min).
+export function instrucaoDuracao(minutos: number): string {
+  const min = Math.max(1, Math.min(20, Math.round(minutos || 0)));
+  const alvo = min * 130;
+  return `\n\nTAMANHO: este video deve ter cerca de ${min} minuto(s) de narracao, o que da aproximadamente ${alvo} palavras (fique entre ${min * 115} e ${min * 145}). Ajuste a profundidade ao tempo: se for curto, va direto ao essencial, sem enrolar.`;
+}
+
+// Ajuste de estilo do roteiro por formato. YouTube = comportamento padrao (vazio).
+export function instrucaoFormatoRoteiro(formato: Formato): string {
+  if (formato === "tiktok") {
+    return `\n\nFORMATO TIKTOK (video curto e vertical): seja direto ao ponto. O gancho tem que prender nos primeiros segundos, sem introducao. Ritmo rapido, frases curtas, cada momento puxando o proximo.`;
+  }
+  return "";
+}
+
+// Orientacao dos prompts de imagem por formato.
+export function instrucaoFormatoImagens(formato: Formato): string {
+  if (formato === "tiktok") {
+    return `\n\nFORMATO DO VIDEO: vertical 9:16 (tela de celular em pe). Componha cada cena para enquadramento vertical, com o foco central. Inclua a expressao "vertical 9:16 aspect ratio" em cada prompt.`;
+  }
+  return `\n\nFORMATO DO VIDEO: horizontal 16:9 (widescreen). Inclua a expressao "horizontal 16:9 aspect ratio" em cada prompt.`;
 }

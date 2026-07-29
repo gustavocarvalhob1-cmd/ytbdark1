@@ -61,9 +61,6 @@ O QUE VOCE NUNCA FAZ
 ESTRUTURA INVISIVEL
 Comece com um gancho que toque uma dor ou um desejo comum, nos primeiros quinze a trinta segundos. Desenvolva como uma jornada emocional, uma ideia levando a outra, com uma historia no meio. Tenha uma virada que traga esperanca. Feche com uma mensagem forte que fique com a pessoa, sem soar como "concluindo".
 
-TAMANHO
-Entre 1040 e 1560 palavras (video de oito a doze minutos a 130 palavras por minuto).
-
 ENTREGA
 Entregue SO o texto do roteiro. Sem titulo, sem comentario, sem contagem de palavras.`,
     imagens: `Estilo visual do canal: luz suave, amanhecer, natureza, tons quentes, sensacao de esperanca e de movimento pra frente. Mantenha essa paleta em todas as cenas.

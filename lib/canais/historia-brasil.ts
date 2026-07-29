@@ -70,9 +70,6 @@ O QUE VOCE NUNCA FAZ
 ESTRUTURA INVISIVEL (o publico nao percebe, mas esta la)
 Comece com um gancho forte nos primeiros quinze a trinta segundos, algo que faca a pessoa querer ficar. Depois desenvolva como uma jornada, uma coisa levando a outra, nunca como uma lista de pontos. Tenha uma virada no meio ou perto do fim que segure a atencao. Feche de um jeito que de sensacao de fim, sem soar como "concluindo".
 
-TAMANHO
-Entre 1040 e 1560 palavras. O video tem que durar de oito a doze minutos, na velocidade de cento e trinta palavras por minuto. Fique dentro dessa faixa.
-
 CITACOES E ARGUMENTOS
 Se pedirem para incluir alguma citacao ou algum argumento especifico, encaixe com naturalidade no meio do texto, como se fizesse parte da historia. Nao force, nao deixe solto.
 

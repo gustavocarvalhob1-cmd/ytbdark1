@@ -2,10 +2,11 @@ import { Canal } from "./tipos";
 import { historiaBrasil } from "./historia-brasil";
 import { conspiracoes } from "./conspiracoes";
 import { inspiracional } from "./inspiracional";
+import { financas } from "./financas";
 
 export * from "./tipos";
 
-export const CANAIS: Canal[] = [historiaBrasil, conspiracoes, inspiracional];
+export const CANAIS: Canal[] = [historiaBrasil, conspiracoes, inspiracional, financas];
 
 const PORID: Record<string, Canal> = Object.fromEntries(CANAIS.map((c) => [c.id, c]));
 

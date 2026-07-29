@@ -1,5 +1,8 @@
 // Tipos compartilhados entre o backend (rotas) e o frontend (telas).
 
+// Formato do video (afeta orientacao das imagens e estilo do roteiro).
+export type Formato = "youtube" | "tiktok";
+
 // Cada linha do streaming (NDJSON) é um destes eventos.
 export type EventoStream =
   | { type: "status"; message: string } // "Pesquisando na internet..."
@@ -23,6 +26,8 @@ export interface MetaFinal {
 // Um video salvo no historico (fica guardado no navegador).
 export interface VideoSalvo {
   canal: string; // id do canal a que este video pertence
+  duracaoMin?: number; // duracao escolhida (minutos)
+  formato?: Formato; // "youtube" | "tiktok"
   id: string;
   titulo: string;
   data: number; // timestamp

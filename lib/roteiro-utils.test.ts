@@ -5,6 +5,9 @@ import {
   fatiarRoteiro,
   mensagemTema,
   mensagemPesquisa,
+  instrucaoDuracao,
+  instrucaoFormatoRoteiro,
+  instrucaoFormatoImagens,
 } from "./roteiro-utils";
 
 describe("contarPalavras", () => {
@@ -40,5 +43,35 @@ describe("mensagemPesquisa / mensagemTema", () => {
     const m = mensagemTema("resiliencia");
     expect(m).toContain("resiliencia");
     expect(m.toLowerCase()).not.toContain("confira os fatos");
+  });
+});
+
+describe("instrucaoDuracao", () => {
+  it("inclui os minutos e a quantidade de palavras alvo", () => {
+    const s = instrucaoDuracao(5);
+    expect(s).toContain("5 minuto");
+    expect(s).toContain("650"); // 5 * 130
+  });
+  it("limita a duracao entre 1 e 20", () => {
+    expect(instrucaoDuracao(100)).toContain("20 minuto");
+    expect(instrucaoDuracao(0)).toContain("1 minuto");
+  });
+});
+
+describe("instrucaoFormatoRoteiro", () => {
+  it("youtube nao adiciona instrucao", () => {
+    expect(instrucaoFormatoRoteiro("youtube")).toBe("");
+  });
+  it("tiktok pede gancho rapido e direto", () => {
+    expect(instrucaoFormatoRoteiro("tiktok").toLowerCase()).toContain("gancho");
+  });
+});
+
+describe("instrucaoFormatoImagens", () => {
+  it("youtube menciona 16:9", () => {
+    expect(instrucaoFormatoImagens("youtube")).toContain("16:9");
+  });
+  it("tiktok menciona 9:16", () => {
+    expect(instrucaoFormatoImagens("tiktok")).toContain("9:16");
   });
 });
