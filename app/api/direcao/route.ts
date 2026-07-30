@@ -7,7 +7,7 @@ import { mensagemDirecao } from "@/lib/roteiro-utils";
 import { SYSTEM_DIRECAO } from "@/lib/voz-insight";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // MODO INSIGHT: confirma o rumo depois que o usuario escolheu/escreveu um angulo.
 export async function POST(req: NextRequest) {

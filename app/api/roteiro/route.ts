@@ -14,7 +14,7 @@ import {
 import type { Formato } from "@/lib/tipos";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // PASSO 2 - ROTEIRO: escreve o texto narrado na voz do canal, no tamanho e formato pedidos.
 export async function POST(req: NextRequest) {

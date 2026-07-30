@@ -7,7 +7,7 @@ import { mensagemPrompts, fatiarRoteiro, instrucaoFormatoImagens } from "@/lib/r
 import type { Formato } from "@/lib/tipos";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // PASSO 3 - IMAGENS: gera os prompts de video de um lote, na orientacao do formato escolhido.
 export async function POST(req: NextRequest) {

@@ -17,26 +17,52 @@ type Emit = (evento: object) => void;
 
 // Roda o Claude em streaming, repassando cada pedaco de texto para o navegador
 // (via emit) e avisando quando uma busca na web comeca. Devolve a mensagem final.
+// emitirTexto=false: nao repassa o texto cru (util quando o texto e tratado no fim).
 export async function gerarComStream(
   emit: Emit,
   params: any,
+  emitirTexto = true,
 ): Promise<Anthropic.Message> {
-  const stream = cliente().messages.stream(params);
+  const mensagens = Array.isArray(params.messages) ? [...params.messages] : params.messages;
+  let resposta: Anthropic.Message;
+  let voltas = 0;
+  let buscas = 0;
 
-  stream.on("streamEvent", (event) => {
-    if (event.type === "content_block_start") {
-      const bloco: any = event.content_block;
-      if (bloco?.type === "server_tool_use" && bloco?.name === "web_search") {
-        emit({ type: "status", message: "Pesquisando na internet para conferir os fatos..." });
+  // A busca na web roda no servidor da Anthropic e pode "pausar" (pause_turn)
+  // quando faz muitas buscas. Nesse caso, continuamos de onde parou.
+  while (true) {
+    const stream = cliente().messages.stream({ ...params, messages: mensagens });
+
+    stream.on("streamEvent", (event) => {
+      if (event.type === "content_block_start") {
+        const bloco: any = event.content_block;
+        if (bloco?.type === "server_tool_use" && bloco?.name === "web_search") {
+          buscas++;
+          emit({
+            type: "status",
+            message: `Pesquisando na internet e conferindo os fatos... (${buscas})`,
+          });
+        }
       }
+    });
+
+    if (emitirTexto) {
+      stream.on("text", (delta) => {
+        emit({ type: "delta", text: delta });
+      });
     }
-  });
 
-  stream.on("text", (delta) => {
-    emit({ type: "delta", text: delta });
-  });
+    resposta = await stream.finalMessage();
 
-  return stream.finalMessage();
+    if (resposta.stop_reason === "pause_turn" && voltas < 4) {
+      mensagens.push({ role: "assistant", content: resposta.content });
+      voltas++;
+      continue;
+    }
+    break;
+  }
+
+  return resposta;
 }
 
 // Junta todo o texto (blocos do tipo "text") de uma resposta.

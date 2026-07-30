@@ -7,7 +7,7 @@ import { mensagemAngulos } from "@/lib/roteiro-utils";
 import { SYSTEM_ANGULOS } from "@/lib/voz-insight";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // MODO INSIGHT: a partir de uma ideia solta, propoe de 3 a 5 angulos para o video.
 export async function POST(req: NextRequest) {

@@ -6,7 +6,7 @@ import { getCanal } from "@/lib/canais";
 import { mensagemPesquisa, mensagemTema } from "@/lib/roteiro-utils";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // PASSO 1: monta o material base (dossie de pesquisa OU desenvolvimento de tema), por canal.
 export async function POST(req: NextRequest) {
