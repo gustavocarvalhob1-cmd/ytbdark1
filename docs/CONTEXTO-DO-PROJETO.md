@@ -1,7 +1,7 @@
 # Estudio Dark — Contexto do Projeto (memória para retomar)
 
 > Este arquivo resume o estado do projeto e o histórico do trabalho, pra retomar
-> em uma nova conversa sem perder contexto. Última atualização: 2026-07-29.
+> em uma nova conversa sem perder contexto. Última atualização: 2026-07-31.
 
 ---
 
@@ -18,10 +18,10 @@ salvo no **localStorage** (por navegador, não sincroniza entre PCs ainda).
 
 ## 2. Onde vive (infra)
 
-- **Pasta local:** `C:\Users\gusta\Plataforma YTB`
-- **GitHub:** `github.com/gustavocarvalhob1-cmd/ytbdark1` (branch `main`)
-- **Vercel:** `plataforma-ytb.vercel.app` (scope/time `dark1-plataform`, plano Hobby, projeto `plataforma-ytb`, Root Directory = raiz)
-- **Deploy automático:** `git push origin main` → o Vercel publica sozinho em ~1-2 min. (Não precisa mais de token nem CLI.)
+- **Pasta local:** PC de casa `C:\Users\gusta\Plataforma YTB`; PC de trabalho `C:\Users\User\Plataforma YTB` (estabelecido jul/2026 — se a pasta ainda se chamar `ytbdark1`, renomear pra `Plataforma YTB`). Ambos são clones do repo, cada um com seu próprio `.env.local` (a chave nunca vai pro git).
+- **GitHub:** `github.com/gustavocarvalhob1-cmd/ytbdark1` (branch `main`). Pode ser **privado** — push/pull/deploy funcionam privado; só precisa estar logado no git de cada PC.
+- **Vercel:** `plataforma-ytb.vercel.app` (scope/time `dark1-plataform`, plano Hobby com Fluid Compute = `maxDuration` até 300s, projeto `plataforma-ytb`, Root Directory = raiz). Env vars `ANTHROPIC_API_KEY` e `APP_PASSWORD` em Production.
+- **Deploy automático:** `git push origin main` → o Vercel publica sozinho em ~1-2 min (o projeto está conectado ao GitHub). Não usar `vercel --prod` manual — gera versões divergentes.
 
 ## 3. Stack e como rodar
 
@@ -70,6 +70,17 @@ Cada canal é um perfil em `lib/canais/<id>.ts` com: `id`, `nome`, `emoji`, `cor
 - Iniciante em desenvolvimento/ferramentas — prefere **orientação passo a passo**, explicações claras, em português.
 - Usa **2 PCs**: casa (este, Windows 11) e o do trabalho. O **código** sincroniza via GitHub (é só `git clone` no outro PC); o **histórico de vídeos NÃO** (localStorage).
 - **Segurança já resolvida:** tokens do Vercel revogados; `TOKEN-VERCEL.txt` e os scripts de resgate (`recover.mjs`, `pull-env.mjs`) apagados. A chave da Anthropic fica só no `.env.local` (protegido pelo `.gitignore`).
+
+## 8b. Manutenção e ciladas resolvidas (jul/2026)
+
+**Correções aplicadas (já no ar e no GitHub):**
+- `maxDuration = 300` em todas as rotas de API (`fonte`, `roteiro`, `prompts`, `angulos`, `direcao`). Antes era 60s e o **Passo 1 cortava**: com busca na web ele demora ~106s e passava dos 60s, voltando pra tela sem entregar nada.
+- `gerarComStream` (`lib/anthropic.ts`): trata `pause_turn` (a busca na web roda no servidor da Anthropic e pode "pausar"; agora continua de onde parou), tem um contador de buscas no status, e um parâmetro `emitirTexto`.
+
+**Ciladas que já custaram tempo (não repetir):**
+- **Trocar a chave da Anthropic:** faça SEMPRE pelo **dashboard da Vercel** (Settings → Environment Variables), nunca colando no terminal (`vercel env add`). A chave é longa e o terminal já a cortou uma vez, gerando erro "chave faltando ou inválida".
+- **Dois PCs = risco de versões divergentes.** Já aconteceu de uma versão simples sobrescrever a versão boa em produção. Regra de ouro: **ao começar, `git pull`; ao terminar, `git push`.** O deploy é automático pelo GitHub. **Nunca** desenvolver numa pasta sem `git` nem usar `vercel --prod` manual.
+- Sempre confirmar em qual pasta está trabalhando: a oficial de cada PC está na seção 2. Pastas antigas sem `.git` são obsoletas — apagar.
 
 ## 9. Para retomar numa nova conversa
 
