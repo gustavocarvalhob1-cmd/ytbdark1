@@ -140,3 +140,39 @@ export function parsearAngulos(texto: string): string[] {
     .filter((l) => l.length > 0)
     .slice(0, 5);
 }
+
+// PASSO 4 (capa): orientacao do formato da thumbnail.
+export function instrucaoFormatoCapa(formato: Formato): string {
+  if (formato === "tiktok") {
+    return `Formato da capa: vertical 9:16 (tela de celular em pe). Componha o texto e o elemento principal para a leitura vertical, foco central. Inclua "vertical 9:16 aspect ratio" no prompt em ingles.`;
+  }
+  return `Formato da capa: horizontal 16:9 (thumbnail de YouTube). Texto grande legivel mesmo pequeno, rosto ou elemento forte de um lado. Inclua "horizontal 16:9 aspect ratio" no prompt em ingles.`;
+}
+
+// PASSO 4 (capa): monta a mensagem do usuario para gerar os 3 conceitos de capa.
+export function mensagemCapa(opts: {
+  canalNome: string;
+  canalDescricao: string;
+  paleta: string[];
+  tema: string;
+  roteiro: string;
+  formato: Formato;
+  temReferencias: boolean;
+}): string {
+  const cores = opts.paleta.join(", ");
+  const refs = opts.temReferencias
+    ? `\n\nO usuario anexou imagens de referencia (capas que ele gosta). Analise o estilo delas (composicao, cores, tipo de texto) e proponha capas no mesmo tom, adaptado a este canal.`
+    : "";
+  return `Canal: ${opts.canalNome} — ${opts.canalDescricao}
+Paleta de cores do canal (use estas cores): ${cores}
+${instrucaoFormatoCapa(opts.formato)}
+
+Tema do video: ${opts.tema.trim()}
+
+Roteiro (para voce entender o conteudo e o gancho):
+===== ROTEIRO =====
+${opts.roteiro.trim()}
+===== FIM =====${refs}
+
+Proponha 3 conceitos de capa (thumbnail) diferentes, no formato pedido.`;
+}

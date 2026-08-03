@@ -5,6 +5,7 @@ export const conspiracoes: Canal = {
   nome: "Conspirações",
   emoji: "🕵️",
   cor: "#8a7fd6",
+  paleta: ["#8a7fd6", "#14121c", "#4a4363", "#c0392b", "#2b2740"],
   descricao: "Suspense investigativo e honesto",
   entrada: {
     modo: "pesquisa",

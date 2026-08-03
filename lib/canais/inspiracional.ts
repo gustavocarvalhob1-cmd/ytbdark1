@@ -5,6 +5,7 @@ export const inspiracional: Canal = {
   nome: "Inspiracional",
   emoji: "🌅",
   cor: "#e0a44a",
+  paleta: ["#e0a44a", "#f4a261", "#ffd8a8", "#7bb0c9", "#fff3e0"],
   descricao: "Motivacional, desenvolvimento pessoal",
   entrada: {
     modo: "livre",

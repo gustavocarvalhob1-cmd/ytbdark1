@@ -12,6 +12,8 @@ import {
   mensagemDirecao,
   montarFonteInsight,
   parsearAngulos,
+  instrucaoFormatoCapa,
+  mensagemCapa,
 } from "./roteiro-utils";
 
 describe("contarPalavras", () => {
@@ -104,5 +106,40 @@ describe("insight", () => {
       "segundo caminho",
       "terceiro",
     ]);
+  });
+});
+
+describe("capa", () => {
+  it("instrucaoFormatoCapa menciona 16:9 no youtube e 9:16 no tiktok", () => {
+    expect(instrucaoFormatoCapa("youtube")).toContain("16:9");
+    expect(instrucaoFormatoCapa("tiktok")).toContain("9:16");
+  });
+  it("mensagemCapa inclui tema, cores da paleta e a orientacao do formato", () => {
+    const m = mensagemCapa({
+      canalNome: "Finanças",
+      canalDescricao: "educação financeira",
+      paleta: ["#4caf7d", "#d4af37"],
+      tema: "reserva de emergencia",
+      roteiro: "texto do roteiro que explica o assunto todo",
+      formato: "youtube",
+      temReferencias: false,
+    });
+    expect(m).toContain("reserva de emergencia");
+    expect(m).toContain("#4caf7d");
+    expect(m).toContain("16:9");
+  });
+  it("mensagemCapa so fala de referencias quando temReferencias e true", () => {
+    const base = {
+      canalNome: "X",
+      canalDescricao: "y",
+      paleta: ["#000000"],
+      tema: "t",
+      roteiro: "roteiro suficientemente grande pra passar",
+      formato: "youtube" as const,
+    };
+    expect(mensagemCapa({ ...base, temReferencias: true }).toLowerCase()).toContain("referenc");
+    expect(
+      mensagemCapa({ ...base, temReferencias: false }).toLowerCase(),
+    ).not.toContain("imagens de referenc");
   });
 });

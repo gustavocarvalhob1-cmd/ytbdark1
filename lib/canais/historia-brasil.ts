@@ -5,6 +5,7 @@ export const historiaBrasil: Canal = {
   nome: "História do Brasil",
   emoji: "🇧🇷",
   cor: "#c99a5b",
+  paleta: ["#c99a5b", "#7a4f2a", "#e9d8b4", "#2e2117", "#9c6b3f"],
   descricao: "Narrativa factual, contação de história",
   entrada: {
     modo: "pesquisa",

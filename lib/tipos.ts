@@ -38,5 +38,6 @@ export interface VideoSalvo {
   roteiro: string;
   meta: MetaFinal | null;
   prompts: string;
+  capa?: string; // Passo 4: conceitos de capa/thumbnail
   passoMax: number;
 }

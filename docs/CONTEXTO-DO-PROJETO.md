@@ -1,7 +1,7 @@
 # Estudio Dark — Contexto do Projeto (memória para retomar)
 
 > Este arquivo resume o estado do projeto e o histórico do trabalho, pra retomar
-> em uma nova conversa sem perder contexto. Última atualização: 2026-07-31.
+> em uma nova conversa sem perder contexto. Última atualização: 2026-08-03.
 
 ---
 
@@ -34,10 +34,10 @@ salvo no **localStorage** (por navegador, não sincroniza entre PCs ainda).
 ## 4. Estrutura do código
 
 - `app/page.tsx` — toda a interface (um componente grande, client-side). Já está grande; se crescer mais, considerar extrair hooks `useInsight`/`useFila`.
-- `app/api/*/route.ts` — rotas de API com streaming: `fonte`, `roteiro`, `prompts`, `ping`, `angulos`, `direcao`.
-- `lib/canais/` — um arquivo por canal (`historia-brasil.ts`, `conspiracoes.ts`, `inspiracional.ts`, `financas.ts`) + `tipos.ts` (interface `Canal`) + `index.ts` (`CANAIS`, `getCanal`, `CANAL_PADRAO`).
+- `app/api/*/route.ts` — rotas de API com streaming: `fonte`, `roteiro`, `prompts`, `ping`, `angulos`, `direcao`, `capa` (multimodal: aceita imagens de referência).
+- `lib/canais/` — um arquivo por canal (`historia-brasil.ts`, `conspiracoes.ts`, `inspiracional.ts`, `financas.ts`) + `tipos.ts` (interface `Canal`) + `index.ts` (`CANAIS`, `getCanal`, `CANAL_PADRAO`). Cada `Canal` tem `cor` e `paleta: string[]` (identidade visual, usada na capa).
 - `lib/roteiro-utils.ts` — funções puras (montagem de mensagens, `instrucaoDuracao`/`instrucaoFormato*`, `mensagemAngulos`/`mensagemDirecao`/`montarFonteInsight`/`parsearAngulos`).
-- `lib/voz-insight.ts` — system prompts do modo insight.
+- `lib/voz-insight.ts` — system prompts do modo insight. `lib/voz-capa.ts` — system prompt da capa (Passo 4).
 - `lib/anthropic.ts` (cliente + `gerarComStream`), `auth.ts`, `stream.ts`, `cliente.ts` (`streamFetch`), `tipos.ts`.
 - `docs/superpowers/specs/` e `docs/superpowers/plans/` — specs e planos de cada feature. `docs/roadmap.md` — backlog.
 
@@ -48,6 +48,7 @@ salvo no **localStorage** (por navegador, não sincroniza entre PCs ainda).
 3. **Formato** — botões YouTube (16:9) / TikTok (9:16). TikTok deixa o roteiro mais direto + imagens verticais. Ao trocar formato, a duração sugerida muda (editável).
 4. **Modo Insight** — botão "💡 Explorar ângulos": ideia solta → a IA traz 3-5 ângulos (clicáveis) + campo livre → escolher/escrever → a IA confirma o rumo → "Seguir com esse rumo" gera o dossiê. Rotas `/api/angulos` e `/api/direcao`.
 5. **Fila** — botão "🗂️ Modo fila": adicionar várias fontes (uma a uma), "Rodar fila" processa Fonte→Roteiro em lote no histórico (roda com a aba aberta), com progresso e botão parar. Histórico guarda 30 itens.
+6. **Paleta + Capa (Passo 4)** — cada canal tem uma `paleta` de cores (identidade visual). O Passo 4 (destrava após concluir o Passo 3) sugere **3 conceitos de capa/thumbnail** (conceito, texto da capa em PT, composição, elementos, cores da paleta e um **prompt em inglês** pra gerar a imagem), respeitando a paleta e o formato (16:9/9:16). Aceita **até 3 imagens de referência** (redimensionadas no navegador p/ caber no payload da Vercel; enviadas como imagem à API multimodal). O texto da capa fica salvo no histórico (`capa?` no `VideoSalvo`).
 
 ### Como um canal funciona (pra editar a voz)
 Cada canal é um perfil em `lib/canais/<id>.ts` com: `id`, `nome`, `emoji`, `cor`, `entrada` (modo `pesquisa`|`livre`, label, placeholder, botão) e `prompts` (`passo1`, `roteiro`, `imagens`). Modo **pesquisa** confere fatos (história, conspiração, finanças); modo **livre** desenvolve o tema sem checar (inspiracional). Pra ajustar o tom de um canal, é só editar o arquivo dele.
@@ -56,7 +57,7 @@ Cada canal é um perfil em `lib/canais/<id>.ts` com: `id`, `nome`, `emoji`, `cor
 
 - **Canais editáveis pela tela** (criar/excluir canais na UI) — precisa de persistência/nuvem (Supabase).
 - **Sincronizar o histórico entre PCs** (Supabase) — hoje é localStorage, por navegador. É o que faria o trabalho "seguir" o Gustavo entre casa e trabalho.
-- **Paleta de cores por canal** + **sugestões de capa (thumbnail)** com upload de imagens de referência (a API da Anthropic aceita imagens).
+- ~~**Paleta de cores por canal** + **sugestões de capa (thumbnail)**~~ — ✅ FEITO (2026-08-03). Retoques futuros: paleta **editável pela tela** (Supabase) e **gerar a imagem pronta** da capa (integrar API de geração de imagem).
 - Fases seguintes: pautas em lote, narração (TTS), título/descrição/tags, geração/montagem de vídeo, publicação no YouTube.
 
 ## 7. Como trabalhamos (fluxo estabelecido)
@@ -81,9 +82,11 @@ Cada canal é um perfil em `lib/canais/<id>.ts` com: `id`, `nome`, `emoji`, `cor
 - **Trocar a chave da Anthropic:** faça SEMPRE pelo **dashboard da Vercel** (Settings → Environment Variables), nunca colando no terminal (`vercel env add`). A chave é longa e o terminal já a cortou uma vez, gerando erro "chave faltando ou inválida".
 - **Dois PCs = risco de versões divergentes.** Já aconteceu de uma versão simples sobrescrever a versão boa em produção. Regra de ouro: **ao começar, `git pull`; ao terminar, `git push`.** O deploy é automático pelo GitHub. **Nunca** desenvolver numa pasta sem `git` nem usar `vercel --prod` manual.
 - Sempre confirmar em qual pasta está trabalhando: a oficial de cada PC está na seção 2. Pastas antigas sem `.git` são obsoletas — apagar.
+- **Reincidência no PC de trabalho (ago/2026):** ao abrir "Leia o contexto e vamos continuar", a sessão caiu em `C:\Users\User\Plataforma YTB`, que estava **OBSOLETA e SEM git** (código antigo, sem multi-canal/insight/fila). O clone real com git era `C:\Users\User\ytbdark1`. Fix combinado: apagar a obsoleta e **renomear `ytbdark1` → `Plataforma YTB`** (script `LIMPAR-PASTAS.bat` na raiz de `C:\Users\User`, roda com o Claude Code fechado). Regra reforçada: antes de tudo, confirmar que a pasta tem `.git` e é o clone do `ytbdark1`.
 
 ## 9. Para retomar numa nova conversa
 
 Diga algo como: *"Leia `docs/CONTEXTO-DO-PROJETO.md` e vamos continuar"*. Boas próximas tarefas:
-- Trabalhar a **paleta de cores + sugestões de capa** (roadmap), ou
-- Encarar a **nuvem (Supabase)** para canais editáveis e histórico sincronizado entre PCs.
+- Encarar a **nuvem (Supabase)** para canais editáveis e histórico sincronizado entre PCs (a maior que falta).
+- **Gerar a imagem pronta da capa** (integrar uma API de geração de imagem) — hoje a capa sai como conceito + prompt.
+- Fases seguintes do roadmap: pautas em lote, narração (TTS), título/descrição/tags.

@@ -19,6 +19,7 @@ export interface Canal {
   nome: string;
   emoji: string;
   cor: string; // hex de destaque, ex: "#c99a5b" (aplicado via style inline)
+  paleta: string[]; // identidade visual do canal (cores hex); a 1a costuma ser a `cor`
   descricao: string;
   entrada: EntradaCanal;
   prompts: PromptsCanal;

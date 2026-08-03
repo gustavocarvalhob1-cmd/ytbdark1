@@ -14,10 +14,41 @@ const CHAVE_DURACAO = "estudio-dark-duracao";
 const CHAVE_FORMATO = "estudio-dark-formato";
 const MAX_HISTORICO = 30; // guarda os ultimos 30 videos (a fila gera varios)
 
-type Passo = 1 | 2 | 3;
+type Passo = 1 | 2 | 3 | 4;
 
 function novoId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// Reduz a imagem no navegador (max ~1024px, JPEG) antes de enviar, pra caber no
+// limite de tamanho da requisicao e economizar. Devolve base64 (sem o prefixo).
+async function redimensionarImagem(
+  file: File,
+  maxLado = 1024,
+): Promise<{ media_type: string; data: string }> {
+  const dataUrl: string = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result as string);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataUrl;
+  });
+  const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * escala));
+  const h = Math.max(1, Math.round(img.height * escala));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("sem canvas");
+  ctx.drawImage(img, 0, 0, w, h);
+  const jpeg = canvas.toDataURL("image/jpeg", 0.82);
+  return { media_type: "image/jpeg", data: jpeg.split(",")[1] };
 }
 
 function derivarTitulo(v: { roteiro: string; dossie: string; fonte: string }): string {
@@ -77,6 +108,12 @@ export default function Pagina() {
   const [carregando3, setCarregando3] = useState(false);
   const [status3, setStatus3] = useState("");
 
+  // passo 4 (capa)
+  const [capa, setCapa] = useState("");
+  const [carregando4, setCarregando4] = useState(false);
+  const [status4, setStatus4] = useState("");
+  const [referencias, setReferencias] = useState<{ media_type: string; data: string }[]>([]);
+
   const [erro, setErro] = useState("");
 
   // ----- modo insight -----
@@ -111,6 +148,7 @@ export default function Pagina() {
     setRoteiro(v.roteiro || "");
     setMeta(v.meta || null);
     setPrompts(v.prompts || "");
+    setCapa(v.capa || "");
     setPassoMax((v.passoMax || 1) as Passo);
     setDuracao(v.duracaoMin && v.duracaoMin >= 1 ? v.duracaoMin : 10);
     setFormato(v.formato === "tiktok" ? "tiktok" : "youtube");
@@ -170,6 +208,7 @@ export default function Pagina() {
         roteiro,
         meta,
         prompts,
+        capa,
         passoMax,
       };
       const nova = [atual, ...outros].slice(0, MAX_HISTORICO);
@@ -181,7 +220,7 @@ export default function Pagina() {
       }
       return nova;
     });
-  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, passoMax, verificandoLogin, idAtual, canalAtivo, duracao, formato]);
+  }, [fonte, extras, dossie, fontes, roteiro, meta, prompts, capa, passoMax, verificandoLogin, idAtual, canalAtivo, duracao, formato]);
 
   function novoVideo() {
     setIdAtual(novoId());
@@ -192,6 +231,8 @@ export default function Pagina() {
     setRoteiro("");
     setMeta(null);
     setPrompts("");
+    setCapa("");
+    setReferencias([]);
     setPassoMax(1);
     setPasso(1);
     setErro("");
@@ -564,9 +605,59 @@ export default function Pagina() {
       }
       if (falhou) break;
     }
+    if (!falhou) setPassoMax((p) => (p < 4 ? 4 : p));
     setCarregando3(false);
     setStatus3("");
   }, [carregando3, roteiro, meta, senha, canalAtivo, formato]);
+
+  // ---------------- PASSO 4 (capa) ----------------
+  async function adicionarReferencias(files: FileList | null) {
+    if (!files) return;
+    const atuais = [...referencias];
+    for (const f of Array.from(files)) {
+      if (atuais.length >= 3) break;
+      if (!f.type.startsWith("image/")) continue;
+      try {
+        atuais.push(await redimensionarImagem(f));
+      } catch {
+        /* ignora arquivo problematico */
+      }
+    }
+    setReferencias(atuais.slice(0, 3));
+  }
+
+  function removerReferencia(i: number) {
+    setReferencias((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  const rodarPasso4 = useCallback(async () => {
+    if (carregando4) return;
+    if (roteiro.trim().length < 20) {
+      setErro("Faltou o roteiro pra pensar na capa.");
+      return;
+    }
+    setErro("");
+    setCapa("");
+    setCarregando4(true);
+    setStatus4("Iniciando...");
+    const tema = derivarTitulo({ roteiro, dossie, fonte });
+    let texto = "";
+    await streamFetch(
+      "/api/capa",
+      { tema, roteiro, canal: canalAtivo, formato, referencias },
+      senha,
+      {
+        onStatus: setStatus4,
+        onDelta: (t) => {
+          texto += t;
+          setCapa(texto);
+        },
+        onError: (m) => setErro(m),
+      },
+    );
+    setCarregando4(false);
+    setStatus4("");
+  }, [carregando4, roteiro, dossie, fonte, canalAtivo, formato, referencias, senha]);
 
   function irPara(p: Passo) {
     if (p <= passoMax) {
@@ -1068,6 +1159,98 @@ export default function Pagina() {
                 nomeArquivo="prompts-video.txt"
               />
             )}
+
+            {passoMax >= 4 && !carregando3 && (
+              <div className="pt-2">
+                <button
+                  onClick={() => irPara(4)}
+                  className="border border-destaque text-destaque rounded-lg px-5 py-3 hover:bg-destaque hover:text-black font-semibold"
+                >
+                  Continuar para a capa →
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ---------------- PASSO 4 ---------------- */}
+        {passo === 4 && (
+          <section className="mt-6 space-y-5">
+            <div className="bg-painel border border-borda rounded-xl p-4 text-sm text-suave space-y-3">
+              <p>
+                Vou sugerir <b className="text-texto">3 conceitos de capa</b> (
+                {formato === "tiktok" ? "9:16" : "16:9"}) na identidade do canal, com o texto da
+                capa e um prompt em inglês pra você gerar a imagem na ferramenta que quiser.
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-suave">Paleta do canal:</span>
+                {canalObj.paleta.map((c) => (
+                  <span
+                    key={c}
+                    title={c}
+                    className="w-5 h-5 rounded-full border border-borda"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-suave block">
+                Referências de capa{" "}
+                <span className="text-suave/70">(opcional, até 3 imagens)</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  adicionarReferencias(e.target.files);
+                  e.target.value = "";
+                }}
+                disabled={referencias.length >= 3}
+                className="block text-sm text-suave file:mr-3 file:rounded-lg file:border-0 file:bg-fundo file:px-3 file:py-2 file:text-texto file:cursor-pointer disabled:opacity-40"
+              />
+              {referencias.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {referencias.map((r, i) => (
+                    <div key={i} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`data:${r.media_type};base64,${r.data}`}
+                        alt=""
+                        className="w-20 h-20 object-cover rounded-lg border border-borda"
+                      />
+                      <button
+                        onClick={() => removerReferencia(i)}
+                        title="Remover"
+                        className="absolute -top-2 -right-2 bg-fundo border border-borda rounded-full w-5 h-5 flex items-center justify-center text-xs text-suave hover:text-red-400"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={rodarPasso4}
+              disabled={carregando4}
+              className="bg-destaque text-black font-semibold rounded-lg px-5 py-3 hover:brightness-110 disabled:opacity-40"
+            >
+              {carregando4 ? "Pensando nas capas..." : capa ? "Sugerir de novo" : "Sugerir capas"}
+            </button>
+
+            {(carregando4 || capa) && (
+              <Resultado
+                titulo="Conceitos de capa"
+                conteudo={capa}
+                gerando={carregando4}
+                status={status4}
+                nomeArquivo="capa.txt"
+              />
+            )}
           </section>
         )}
       </div>
@@ -1090,6 +1273,7 @@ function Stepper({
     [1, "Fonte"],
     [2, "Roteiro"],
     [3, "Imagens"],
+    [4, "Capa"],
   ];
   return (
     <div className="flex items-center gap-2">

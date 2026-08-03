@@ -5,6 +5,7 @@ export const financas: Canal = {
   nome: "Finanças",
   emoji: "💰",
   cor: "#4caf7d",
+  paleta: ["#4caf7d", "#d4af37", "#2e7d5b", "#1b4d3e", "#eaf5ee"],
   descricao: "Educação financeira que descomplica o dinheiro",
   entrada: {
     modo: "pesquisa",
